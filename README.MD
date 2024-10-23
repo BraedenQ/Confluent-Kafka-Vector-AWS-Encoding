@@ -136,10 +136,18 @@ confluent kafka topic list
    
 
 #### 1. Set the connection information
-Before we enter the flink environment we need to create the connection to the endpoint for the vector embedding service.  For this step you need an API key.  Theis example uses OPENAI, there are plenty to choose from, but to follow along and if you do not have an API key, no worries, you can get started by using the link below to get your own OPENAI API key.   
-[https://platform.openai.com/docs/quickstart](https://platform.openai.com/docs/quickstart)
-   
-When creating a connection be sure to give it a recognizable name something that includes the provider and type of sevice like 'openai-vector-connection' for example.  Note the name needs to contain lowercase alphanumeric characters and hyphens only and can only start with alphabetic characters. Maximum length is 100 characters.   
+Before we enter the flink environment we need to create the connection to the endpoint for the vector embedding service.  For this step you need an API key which you can learn more on how to create [here](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html). Alternatively, you can use the AWS CLI to request short term credentials following this [process](https://docs.aws.amazon.com/IAM/latest/UserGuide/sts_example_sts_GetSessionToken_section.html). Regardless, you'll want to save these to variables for later use
+
+```
+ACCESS_KEY_ID=<your_access_key>
+ACCESS_KEY=<your_access_key_secret>
+AWS_SESSION_KEY=<session_key_if_using_get_session_token>
+```
+
+Lastly, you'll want to get the endpoint corresponding with the region in which you are deploying this example. In this example, we will be using `us-east-1`. As such, we will use `bedrock-runtime.us-east-1.amazonaws.com`. 
+
+
+When creating a connection be sure to give it a recognizable name something that includes the provider and type of sevice like 'bedrock-cli-connection' for example.  Note the name needs to contain lowercase alphanumeric characters and hyphens only and can only start with alphabetic characters. Maximum length is 100 characters.   
 
 The environment flag specifies the environment where flink sql is running. Its the one we created in the steps above in the Confluent Cloud gui butits not the name we are after its the id. I call it 'my-env-id' in the example below.  To get the list of environments we can use the 'confluent environment list' example below:
 
@@ -158,31 +166,39 @@ For example if we are working in the environment 'GenAI' then the environment id
 An example of creating a connection in the confluent cli is provided below:    
    
 ```
-confluent flink connection create openai-vector-connection 
---cloud aws 
---region us-west-2 
---environment my-env-id         
---type openai
---endpoint 'https://api.openai.com/v1/embeddings' 
---api-key 'secret_key'
+confluent flink connection create bedrock-cli-connection \
+--cloud aws  \
+--region us-east-1 \ 
+--environment env-xxxxx \
+--type bedrock \
+--aws-access-key $ACCESS_KEY_ID \
+--aws-secret-key $ACCESS_KEY \
+--endpoint https://bedrock-runtime.us-east-1.amazonaws.com/model/amazon.titan-embed-text-v1/invoke
 ```   
 
 Cutting and pasting the above won't work.  The confluent cli has an interesting feature that requires everything to be on one line with no carriage returns.  You can modify the following command and it should work.  I pasted it above with carriage returns so it would be easy to see all the flags in this readme.
 
+Here is the command if you are using long-term access keys:
 ```
-confluent flink connection create openai-vector-connection --cloud aws --region us-west-2 --environment my-env-id --type openai --endpoint 'https://api.openai.com/v1/embeddings' --api-key 'secret_key'
+confluent flink connection create bedrock-cli-connection --cloud aws  --region us-east-1 --environment env-y6kyn6  --type bedrock --aws-access-key $ACCESS_KEY_ID --aws-secret-key $ACCESS_KEY --endpoint https://bedrock-runtime.us-east-1.amazonaws.com/model/amazon.titan-embed-text-v1/invoke
+```
+
+Here is the command if you are using `aws sts get-session-keys` to using session keys instead:
+```
+confluent flink connection create bedrock-cli-connection --cloud aws  --region us-east-1 --environment env-y6kyn6  --type bedrock --aws-access-key $ACCESS_KEY_ID --aws-secret-key $ACCESS_KEY --endpoint https://bedrock-runtime.us-east-1.amazonaws.com/model/amazon.titan-embed-text-v1/invoke --aws-session-token $AWS_SESSION_KEY
 ```
 
 Here is what success looks like:   
 
 ```
-confluent flink connection create openai-vector-connection --cloud aws --region us-west-2 --environment my-env-id --type openai --endpoint 'https://api.openai.com/v1/embeddings' --api-key 'sk-proj-GZuhy1lt8BdZRTgM3xqbTthKQgKIH1'
+confluent flink connection create bedrock-cli-connection --cloud aws  --region us-east-1 --environment env-y6kyn6  --type bedrock --aws-access-key $ACCESS_KEY_ID --aws-secret-key $ACCESS_KEY --endpoint https://bedrock-runtime.us-east-1.amazonaws.com/model/amazon.titan-embed-text-v1/invoke --aws-session-token $AWS_SESSION_KEY
+
 +---------------+--------------------------------------+
 | Creation Date | 2024-09-25 06:03:39.768738           |
 |               | +0000 UTC                            |
-| Name          | openai-vector-connection             |
-| Type          | OPENAI                               |
-| Endpoint      | https://api.openai.com/v1/embeddings |
+| Name          | bedrock-cli-connection             |
+| Type          | BEDROCK                               |
+| Endpoint      | https://bedrock-runtime.us-east-1.amazonaws.com/model/amazon.titan-embed-text-v1/invokes |
 | Data          | <REDACTED>                           |
 | Status        |                                      |
 +---------------+--------------------------------------+
@@ -213,10 +229,10 @@ After logging into the flink command line we are now ready to create the model f
 CREATE MODEL `vector_encoding`
 INPUT (input STRING)
 OUTPUT (vector ARRAY<FLOAT>)
-WITH(
-  'TASK' = 'embedding',
-  'PROVIDER' = 'openai',
-  'OPENAI.CONNECTION' = 'openai-vector-connection'
+WITH (
+  'bedrock.connection'='bedrock-cli-connection',
+  'provider'='bedrock',
+  'task'='embedding'
 );
 ```
 
@@ -225,10 +241,10 @@ Below is an example of succesful output:
 CREATE MODEL `vector_encoding`
 INPUT (input STRING)
 OUTPUT (vector ARRAY<FLOAT>)
-WITH(
-  'TASK' = 'embedding',
-  'PROVIDER' = 'openai',
-  'OPENAI.CONNECTION' = 'openai-vector-connection'
+WITH (
+  'bedrock.connection'='bedrock-cli-connection',
+  'provider'='bedrock',
+  'task'='embedding'
 );
 Statement name: cli-2024-09-25-012912-2683d2ab-2be4-42dd-8257-db85f6f3fbe6
 Statement successfully submitted.
@@ -248,20 +264,7 @@ Very cool! We did vector embedding for the article type, and it was pretty effor
 
 We may also want to enrich this data so we are breaking this down into a few steps.
 
-**Trouble Shooting**   
-If you are not getting data back it could be your API key check with your API provider and try a postman or a curl command.   
-[https://platform.openai.com/docs/guides/embeddings](https://platform.openai.com/docs/guides/embeddings)
 
-```
-curl https://api.openai.com/v1/embeddings \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $OPENAI_API_KEY" \
-  -d '{
-    "input": "Your text string goes here",
-    "model": "text-embedding-3-small"
-  }'
-```   
-   
 
 #### 3. Create a product-content table to hold a new content field
 This table is backed up by a kafka topic with the same name for storage.
